@@ -63,30 +63,34 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
   const agentPayload = payload.agent;
   const agentId = agentPayload.id;
   const callId = payload.call.id;
+  try {
+    let agent = await Agent.findByPk(agentId);
+    if (!agent) {
+      agent = await Agent.create({
+        id: agentId,
+        firstName: agentPayload.first_name || '',
+        lastName: agentPayload.last_name || '',
+        totalPoints: 0,
+      });
+    }
 
-  let agent = await Agent.findByPk(agentId);
-  if (!agent) {
-    agent = await Agent.create({
-      id: agentId,
-      firstName: agentPayload.first_name || '',
-      lastName: agentPayload.last_name || '',
-      totalPoints: 0,
-    });
+    const existingCall = await Call.findOne({ where: { externalId: callId } });
+    if (existingCall) {
+      return res
+        .status(200)
+        .json({ pointsAwarded: 0, duplicate: true });
+    }
+
+    const points = computePoints(payload);
+    agent.totalPoints += points;
+    await agent.save();
+    await Call.create({ externalId: callId, agentId, points });
+
+    res.json({ pointsAwarded: points });
+  } catch (err) {
+    console.error('Error processing webhook', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
-
-  const existingCall = await Call.findOne({ where: { externalId: callId } });
-  if (existingCall) {
-    return res
-      .status(200)
-      .json({ pointsAwarded: 0, duplicate: true });
-  }
-
-  const points = computePoints(payload);
-  agent.totalPoints += points;
-  await agent.save();
-  await Call.create({ externalId: callId, agentId, points });
-
-  res.json({ pointsAwarded: points });
 });
 
 // Leaderboard endpoint
@@ -131,6 +135,12 @@ app.get('/api/agents/:agentId/dashboard', async (req, res) => {
   }
   const agentCalls = await Call.findAll({ where: { agentId } });
   res.json({ agent, calls: agentCalls });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal Server Error' });
 });
 
 const PORT = process.env.PORT || 3000;
