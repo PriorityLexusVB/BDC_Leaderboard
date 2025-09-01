@@ -2,9 +2,15 @@
   "name": "bdc_leaderboard",
   "version": "1.0.0",
   "description": "BDC LEADERBOARD",
+ codex/summarize-call-center-gamification-features-b0d3sd
+  "main": "src/server.js",
+  "scripts": {
+    "test": "jest",
+
   "main": "src/server.js",
   "scripts": {
     "test": "node test.js && node test/server.test.js",
+ main
     "start": "node src/server.js"
   },
   "keywords": [],
@@ -12,6 +18,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+ codex/summarize-call-center-gamification-features-b0d3sd
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0",
+    "jest": "^29.7.0"
+
     "express": "^5.1.0",
     "joi": "^18.0.1",
     "sequelize": "^6.37.1",
@@ -19,5 +32,6 @@
   },
   "devDependencies": {
     "supertest": "^7.1.4"
+ main
   }
 }

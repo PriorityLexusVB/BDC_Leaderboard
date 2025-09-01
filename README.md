@@ -17,6 +17,11 @@ npm start
 
 ## Testing
 
+ codex/summarize-call-center-gamification-features-b0d3sd
+```bash
+npm test
+```
+
 Run the test suite:
 
 ```bash
@@ -30,3 +35,4 @@ To automatically rerun tests on file changes (Node 18+):
 ```bash
 npm test -- --watch
 ```
+ main
