@@ -2,7 +2,7 @@
   "name": "bdc_leaderboard",
   "version": "1.0.0",
   "description": "BDC LEADERBOARD",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
     "test": "node test.js",
     "start": "node src/server.js"
