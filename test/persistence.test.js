@@ -3,7 +3,7 @@ const assert = require('assert/strict');
 const request = require('supertest');
 const crypto = require('crypto');
 
-process.env.DATABASE_URL = 'sqlite::memory:';
+process.env.DATABASE_URL = 'sqlite:test-persistence.db';
 process.env.WEBHOOK_SECRET = 'testsecret';
 
 // Module scope references; will be reloaded to simulate restart
