@@ -1,3 +1,47 @@
+# BDC_Leaderboard
+
+Simple Express-based prototype for call center gamification.
+
+## Endpoints
+
+- `POST /api/webhooks/calldrip` - Accepts webhook payloads from Calldrip and awards points.
+- `GET /api/leaderboard` - Returns current leaderboard sorted by points.
+- `GET /api/agents/:agentId/dashboard` - Returns stats for a given agent.
+
+## Development
+
+Set the following environment variables before starting the server:
+
+- `WEBHOOK_SECRET` – required, shared secret used to verify webhook signatures.
+- `DATABASE_URL` – connection string for the database (defaults to `sqlite:database.sqlite`).
+- `PORT` – optional port for the HTTP server (defaults to `3000`).
+
+Install dependencies and start the server:
+
+```bash
+npm install
+WEBHOOK_SECRET=your_secret DATABASE_URL=sqlite:database.sqlite npm start
+```
+
+## Testing
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+Set `WEBHOOK_SECRET` to the shared secret used to sign webhook requests. The server will use `PORT` and `DATABASE_URL` if set, but tests run against the in-memory app.
+
+To automatically rerun tests on file changes (Node 18+):
+
+```bash
+npm test -- --watch
+```
+src/server.js
++19
+-5
+
 const express = require('express');
 const Joi = require('joi');
 const crypto = require('crypto');
@@ -46,86 +90,7 @@ const payloadSchema = Joi.object({
     last_name: Joi.string().allow(''),
   })
     .required()
-    .unknown(),
-  call: Joi.object({
-    id: Joi.string().required(),
-    duration: Joi.number().min(0),
-    response_time: Joi.number().min(0),
-  })
-    .required()
-    .unknown(),
-  scored_call: Joi.object({
-    percentage: Joi.number().min(0).max(100),
-    opportunity: Joi.boolean(),
-  }).unknown(),
-}).unknown();
-
-// Webhook endpoint
-app.post('/api/webhooks/calldrip', async (req, res) => {
-  const secret = WEBHOOK_SECRET || '';
-  const receivedSig = req.get('X-Signature') || '';
-  const expectedSig = crypto
-    .createHmac('sha256', secret)
-    .update(req.rawBody || '')
-    .digest('hex');
-  if (receivedSig !== expectedSig) {
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
-  const payload = req.body || {};
-  const { error } = payloadSchema.validate(payload);
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
-
-  const agentPayload = payload.agent;
-  const agentId = agentPayload.id;
-  const callId = payload.call.id;
-
-  let agent = await Agent.findByPk(agentId);
-  if (!agent) {
-    agent = await Agent.create({
-      id: agentId,
-      firstName: agentPayload.first_name || '',
-      lastName: agentPayload.last_name || '',
-      totalPoints: 0,
-    });
-  }
-
-  const existingCall = await Call.findOne({ where: { externalId: callId } });
-  if (existingCall) {
-    return res
-      .status(200)
-      .json({ pointsAwarded: 0, duplicate: true });
-  }
-
-  const points = computePoints(payload);
-  agent.totalPoints += points;
-  await agent.save();
-  await Call.create({ externalId: callId, agentId, points });
-
-  res.json({ pointsAwarded: points });
-});
-
-// Leaderboard endpoint
-app.get('/api/leaderboard', async (req, res) => {
-  let { limit, offset, page } = req.query;
-  limit = limit !== undefined ? parseInt(limit, 10) : undefined;
-  if (Number.isNaN(limit) || limit <= 0) {
-    limit = undefined;
-  }
-
-  if (page !== undefined && offset === undefined && limit !== undefined) {
-    const pageNum = parseInt(page, 10);
-    if (!Number.isNaN(pageNum) && pageNum > 0) {
-      offset = (pageNum - 1) * limit;
-    }
-  } else if (offset !== undefined) {
-    offset = parseInt(offset, 10);
-    if (Number.isNaN(offset) || offset < 0) {
-      offset = undefined;
-    }
-  }
+@@ -111,39 +129,35 @@ app.get('/api/leaderboard', async (req, res) => {
 
   const [leaderboard, totalCount] = await Promise.all([
     Agent.findAll({
