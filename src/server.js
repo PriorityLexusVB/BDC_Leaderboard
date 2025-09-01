@@ -1,8 +1,14 @@
 const express = require('express');
+const crypto = require('crypto');
 const { computePoints } = require('./gamification');
 
 const app = express();
-app.use(express.json());
+// Capture the raw body so we can verify the signature
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 
 // In-memory stores for demo purposes
 const agents = new Map(); // agentId -> {id, firstName, lastName, totalPoints}
@@ -10,6 +16,15 @@ const calls = []; // {id, agentId, points}
 
 // Webhook endpoint
 app.post('/api/webhooks/calldrip', (req, res) => {
+  const secret = process.env.WEBHOOK_SECRET || '';
+  const receivedSig = req.get('X-Signature') || '';
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(req.rawBody || '')
+    .digest('hex');
+  if (receivedSig !== expectedSig) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
   const payload = req.body || {};
   const agent = payload.agent || {};
   const agentId = agent.id;
