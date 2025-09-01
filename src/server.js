@@ -1,10 +1,12 @@
 const express = require('express');
 const Joi = require('joi');
 const crypto = require('crypto');
+const path = require('path');
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb } = require('./db');
 
 const app = express();
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Capture the raw body so we can verify the signature
 app.use(
