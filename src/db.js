@@ -19,7 +19,8 @@ const Agent = sequelize.define('Agent', {
 const Call = sequelize.define('Call', {
   externalId: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: true,
+    unique: true,
   },
   points: DataTypes.INTEGER
 });

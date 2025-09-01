@@ -1,36 +1,34 @@
 const express = require('express');
- codex/add-validation-for-call-parameters
 const Joi = require('joi');
-
 const crypto = require('crypto');
- main
+
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb, sequelize } = require('./db');
 
 const app = express();
+
 // Capture the raw body so we can verify the signature
-app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
-}));
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString();
+    },
+  })
+);
 
 // validation schema
 const payloadSchema = Joi.object({
   call: Joi.object({
     duration: Joi.number().min(0),
-    response_time: Joi.number().min(0)
+    response_time: Joi.number().min(0),
   }).unknown(),
   scored_call: Joi.object({
-    percentage: Joi.number().min(0).max(100)
-  }).unknown()
+    percentage: Joi.number().min(0).max(100),
+  }).unknown(),
 }).unknown();
 
 // Webhook endpoint
- codex/introduce-database-layer-with-orm
 app.post('/api/webhooks/calldrip', async (req, res) => {
-
-app.post('/api/webhooks/calldrip', (req, res) => {
   const secret = process.env.WEBHOOK_SECRET || '';
   const receivedSig = req.get('X-Signature') || '';
   const expectedSig = crypto
@@ -40,7 +38,7 @@ app.post('/api/webhooks/calldrip', (req, res) => {
   if (receivedSig !== expectedSig) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
- main
+
   const payload = req.body || {};
   const agentPayload = payload.agent || {};
   const agentId = agentPayload.id;
@@ -48,32 +46,36 @@ app.post('/api/webhooks/calldrip', (req, res) => {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
 
- codex/add-validation-for-call-parameters
   const { error } = payloadSchema.validate(payload);
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
-  // create or update agent
-  const a = agents.get(agentId) || {
-    id: agentId,
-    firstName: agent.first_name || '',
-    lastName: agent.last_name || '',
-    totalPoints: 0
-  };
-
+  // create agent if needed
   let agent = await Agent.findByPk(agentId);
   if (!agent) {
     agent = await Agent.create({
       id: agentId,
       firstName: agentPayload.first_name || '',
       lastName: agentPayload.last_name || '',
-      totalPoints: 0
+      totalPoints: 0,
     });
   }
 
- main
+  const externalId = payload.call?.id ?? null;
+  if (externalId) {
+    const existing = await Call.findOne({ where: { externalId } });
+    if (existing) {
+      return res.status(200).json({ pointsAwarded: 0 });
+    }
+  }
+
   const points = computePoints(payload);
+ codex/update-webhook-handler-for-point-allocation
+  await Agent.increment('totalPoints', { by: points, where: { id: agentId } });
+  await Call.create({ externalId, agentId, points });
+
+
   await sequelize.transaction(async (t) => {
     await Agent.increment(
       { totalPoints: points },
@@ -84,6 +86,7 @@ app.post('/api/webhooks/calldrip', (req, res) => {
       { transaction: t }
     );
   });
+ main
   res.json({ pointsAwarded: points });
 });
 
@@ -114,3 +117,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, initDb };
+
