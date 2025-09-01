@@ -19,7 +19,7 @@
   "type": "commonjs",
   "dependencies": {
  codex/summarize-call-center-gamification-features-b0d3sd
-    "express": "^4.21.2"
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "supertest": "^7.1.4",
