@@ -42,7 +42,7 @@ test('persists data across restart', async () => {
   await initDb();
 
   res = await request(app).get('/api/leaderboard').expect(200);
-  assert.ok(res.body.leaderboard.length > 0);
+  assert.strictEqual(res.body.leaderboard[0].id, 'agent1');
 
   const { sequelize } = require('../src/db');
   await sequelize.close();
