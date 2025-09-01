@@ -3,6 +3,24 @@ const Joi = require('joi');
 const crypto = require('crypto');
 const path = require('path');
 const { computePoints } = require('./gamification');
+
+const envSchema = Joi.object({
+  WEBHOOK_SECRET: Joi.string().required(),
+  DATABASE_URL: Joi.string().default('sqlite:database.sqlite'),
+  PORT: Joi.number().integer().min(1).default(3000),
+}).unknown();
+
+const { error: envError, value: envVars } = envSchema.validate(process.env, {
+  abortEarly: false,
+});
+if (envError) {
+  console.error(`Environment validation error: ${envError.message}`);
+  process.exit(1);
+}
+process.env.WEBHOOK_SECRET = envVars.WEBHOOK_SECRET;
+process.env.DATABASE_URL = envVars.DATABASE_URL;
+process.env.PORT = String(envVars.PORT);
+
 const { Agent, Call, initDb } = require('./db');
 
 const app = express();
@@ -133,12 +151,8 @@ app.get('/api/agents/:agentId/dashboard', async (req, res) => {
   res.json({ agent, calls: agentCalls });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT);
 if (require.main === module) {
-  if (!WEBHOOK_SECRET) {
-    console.error('WEBHOOK_SECRET environment variable is required');
-    process.exit(1);
-  }
   initDb().then(() => {
     app.listen(PORT, () => {
       console.log(`Server listening on ${PORT}`);
