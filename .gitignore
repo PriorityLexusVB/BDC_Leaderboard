@@ -1,1 +1,6 @@
+ codex/summarize-call-center-gamification-features-b0d3sd
 node_modules
+
+node_modules/
+*.sqlite
+ main

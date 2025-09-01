@@ -17,6 +17,22 @@ npm start
 
 ## Testing
 
+ codex/summarize-call-center-gamification-features-b0d3sd
 ```bash
 npm test
 ```
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+No additional environment variables are required. The server will use `PORT` if set, but tests run against the in-memory app.
+
+To automatically rerun tests on file changes (Node 18+):
+
+```bash
+npm test -- --watch
+```
+ main
