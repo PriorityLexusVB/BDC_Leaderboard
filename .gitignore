@@ -1,6 +1,2 @@
- codex/introduce-database-layer-with-orm
-node_modules
-*.sqlite
-
 node_modules/
- main
+*.sqlite

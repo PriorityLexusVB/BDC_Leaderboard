@@ -1,7 +1,10 @@
 const express = require('express');
 const Joi = require('joi');
 const crypto = require('crypto');
+ codex/resolve-merge-conflicts-in-pull-request
 
+
+ main
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb, sequelize } = require('./db');
 
@@ -18,10 +21,21 @@ app.use(
 
 // validation schema
 const payloadSchema = Joi.object({
+  agent: Joi.object({
+    id: Joi.string().required(),
+    first_name: Joi.string().allow(''),
+    last_name: Joi.string().allow('')
+  }).required().unknown(),
   call: Joi.object({
+    id: Joi.string().required(),
     duration: Joi.number().min(0),
+ codex/resolve-merge-conflicts-in-pull-request
+    response_time: Joi.number().min(0)
+  }).required().unknown(),
+
     response_time: Joi.number().min(0),
   }).unknown(),
+ main
   scored_call: Joi.object({
     percentage: Joi.number().min(0).max(100),
   }).unknown(),
@@ -38,6 +52,10 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
   if (receivedSig !== expectedSig) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
+ codex/resolve-merge-conflicts-in-pull-request
+
+  const payload = req.body || {};
+
 
   const payload = req.body || {};
   const agentPayload = payload.agent || {};
@@ -46,12 +64,27 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
 
+ main
   const { error } = payloadSchema.validate(payload);
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
+ codex/resolve-merge-conflicts-in-pull-request
+  const agentPayload = payload.agent;
+  const agentId = agentPayload.id;
+  if (agentId == null || agentId === '') {
+    return res.status(400).json({ error: 'Missing agent.id' });
+  }
+
+  const callId = payload.call.id;
+  if (!callId) {
+    return res.status(400).json({ error: 'Missing call.id' });
+  }
+
+
   // create agent if needed
+ main
   let agent = await Agent.findByPk(agentId);
   if (!agent) {
     agent = await Agent.create({
@@ -61,6 +94,18 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
       totalPoints: 0,
     });
   }
+
+ codex/resolve-merge-conflicts-in-pull-request
+  const existingCall = await Call.findOne({ where: { externalId: callId } });
+  if (existingCall) {
+    return res.status(200).json({ pointsAwarded: 0, duplicate: true });
+  }
+
+  const points = computePoints(payload);
+  agent.totalPoints += points;
+  await agent.save();
+  await Call.create({ externalId: callId, agentId, points });
+
 
   const externalId = payload.call?.id ?? null;
   if (externalId) {
@@ -86,6 +131,7 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
       { transaction: t }
     );
   });
+ main
  main
   res.json({ pointsAwarded: points });
 });

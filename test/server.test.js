@@ -1,74 +1,101 @@
- codex/add-validation-for-call-parameters
 const test = require('node:test');
 const request = require('supertest');
-const app = require('../src/server');
+const crypto = require('crypto');
 
-// Valid payload to ensure baseline functionality
-// using unique agent ID
+process.env.DATABASE_URL = 'sqlite::memory:';
+process.env.WEBHOOK_SECRET = 'testsecret';
+
+const { app, initDb } = require('../src/server');
+
+test.before(async () => {
+  await initDb();
+});
+
+test.after(async () => {
+  const { sequelize } = require('../src/db');
+  await sequelize.close();
+});
+
+function sign(payload) {
+  return crypto
+    .createHmac('sha256', process.env.WEBHOOK_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+}
+
 const validPayload = {
   agent: { id: 'agent-valid', first_name: 'Test', last_name: 'Agent' },
-  call: { duration: 120, response_time: 10 },
+  call: { id: 'call-valid', duration: 120, response_time: 10 },
   scored_call: { percentage: 80, opportunity: true }
 };
 
 test('accepts valid payload', async () => {
-  await request(app).post('/api/webhooks/calldrip').send(validPayload).expect(200);
+  await request(app)
+    .post('/api/webhooks/calldrip')
+    .set('X-Signature', sign(validPayload))
+    .send(validPayload)
+    .expect(200);
 });
 
 test('rejects string call.duration', async () => {
+  const payload = { agent: { id: 'agent-duration-type' }, call: { id: 'call1', duration: 'long' } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-duration-type' }, call: { duration: 'long' } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
 test('rejects negative call.duration', async () => {
+  const payload = { agent: { id: 'agent-duration-range' }, call: { id: 'call2', duration: -5 } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-duration-range' }, call: { duration: -5 } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
 test('rejects string call.response_time', async () => {
+  const payload = { agent: { id: 'agent-response-type' }, call: { id: 'call3', response_time: 'fast' } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-response-type' }, call: { response_time: 'fast' } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
 test('rejects negative call.response_time', async () => {
+  const payload = { agent: { id: 'agent-response-range' }, call: { id: 'call4', response_time: -1 } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-response-range' }, call: { response_time: -1 } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
 test('rejects string scored_call.percentage', async () => {
+  const payload = { agent: { id: 'agent-percentage-type' }, call: { id: 'call5' }, scored_call: { percentage: 'high' } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-percentage-type' }, scored_call: { percentage: 'high' } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
 test('rejects scored_call.percentage over 100', async () => {
+  const payload = { agent: { id: 'agent-percentage-range' }, call: { id: 'call6' }, scored_call: { percentage: 150 } };
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({ agent: { id: 'agent-percentage-range' }, scored_call: { percentage: 150 } })
+    .set('X-Signature', sign(payload))
+    .send(payload)
     .expect(400);
 });
 
-process.env.WEBHOOK_SECRET = 'testsecret';
-const request = require('supertest');
-const app = require('../src/server');
-
-async function run() {
-  const payload = { agent: { id: 'agent2' } };
+test('rejects invalid signature', async () => {
+  const payload = { agent: { id: 'agent-bad-sig' }, call: { id: 'call7' } };
   await request(app)
     .post('/api/webhooks/calldrip')
     .set('X-Signature', 'bad-signature')
     .send(payload)
     .expect(401);
-}
-
-run();
- main
+});
