@@ -37,7 +37,7 @@ test('persists data across restart', async () => {
   assert.ok(Array.isArray(res.body.leaderboard) && res.body.leaderboard.length > 0);
 
   // Simulate server restart by reloading module and re-initialising DB
-  delete require.cache[require.resolve(serverPath)];
+  [serverPath, '../src/db'].map(require.resolve).forEach(id => delete require.cache[id]);
   ({ app, initDb } = require(serverPath));
   await initDb();
 
