@@ -26,7 +26,7 @@ app.post('/api/webhooks/calldrip', (req, res) => {
   const points = computePoints(payload);
   a.totalPoints += points;
   agents.set(agentId, a);
-  calls.push({ id: payload.call?.id, agentId, points });
+  calls.push({ id: payload.call?.id ?? null, agentId, points });
   res.json({ pointsAwarded: points });
 });
 
