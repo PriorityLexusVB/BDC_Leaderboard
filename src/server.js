@@ -66,12 +66,23 @@ process.env.DATABASE_URL = envVars.DATABASE_URL;
 process.env.PORT = String(envVars.PORT);
 
 const { Agent, Call, initDb } = require('./db');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Read once at startup
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const RATE_LIMIT_WINDOW_MS = parseInt(
+  process.env.RATE_LIMIT_WINDOW_MS || '900000',
+  10
+);
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '100', 10);
+
+const calldripLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX,
+});
 
 // Capture the raw body so we can verify the signature
 app.use(
@@ -90,7 +101,90 @@ const payloadSchema = Joi.object({
     last_name: Joi.string().allow(''),
   })
     .required()
+ codex/add-rate-limiting-middleware
+    .unknown(),
+  call: Joi.object({
+    id: Joi.string().required(),
+    duration: Joi.number().min(0),
+    response_time: Joi.number().min(0),
+  })
+    .required()
+    .unknown(),
+  scored_call: Joi.object({
+    percentage: Joi.number().min(0).max(100),
+    opportunity: Joi.boolean(),
+  }).unknown(),
+}).unknown();
+
+// Webhook endpoint
+app.post('/api/webhooks/calldrip', calldripLimiter, async (req, res) => {
+  const secret = WEBHOOK_SECRET || '';
+  const receivedSig = req.get('X-Signature') || '';
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(req.rawBody || '')
+    .digest('hex');
+  if (receivedSig !== expectedSig) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  const payload = req.body || {};
+  const { error } = payloadSchema.validate(payload);
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  const agentPayload = payload.agent;
+  const agentId = agentPayload.id;
+  const callId = payload.call.id;
+
+  let agent = await Agent.findByPk(agentId);
+  if (!agent) {
+    agent = await Agent.create({
+      id: agentId,
+      firstName: agentPayload.first_name || '',
+      lastName: agentPayload.last_name || '',
+      totalPoints: 0,
+    });
+  }
+
+  const existingCall = await Call.findOne({ where: { externalId: callId } });
+  if (existingCall) {
+    return res
+      .status(200)
+      .json({ pointsAwarded: 0, duplicate: true });
+  }
+
+  const points = computePoints(payload);
+  agent.totalPoints += points;
+  await agent.save();
+  await Call.create({ externalId: callId, agentId, points });
+
+  res.json({ pointsAwarded: points });
+});
+
+// Leaderboard endpoint
+app.get('/api/leaderboard', async (req, res) => {
+  let { limit, offset, page } = req.query;
+  limit = limit !== undefined ? parseInt(limit, 10) : undefined;
+  if (Number.isNaN(limit) || limit <= 0) {
+    limit = undefined;
+  }
+
+  if (page !== undefined && offset === undefined && limit !== undefined) {
+    const pageNum = parseInt(page, 10);
+    if (!Number.isNaN(pageNum) && pageNum > 0) {
+      offset = (pageNum - 1) * limit;
+    }
+  } else if (offset !== undefined) {
+    offset = parseInt(offset, 10);
+    if (Number.isNaN(offset) || offset < 0) {
+      offset = undefined;
+    }
+  }
+
 @@ -111,39 +129,35 @@ app.get('/api/leaderboard', async (req, res) => {
+ main
 
   const [leaderboard, totalCount] = await Promise.all([
     Agent.findAll({
