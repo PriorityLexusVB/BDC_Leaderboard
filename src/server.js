@@ -88,10 +88,35 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
 
 // Leaderboard endpoint
 app.get('/api/leaderboard', async (req, res) => {
-  const leaderboard = await Agent.findAll({
-    order: [['totalPoints', 'DESC']],
-  });
-  res.json({ leaderboard });
+  let { limit, offset, page } = req.query;
+  limit = limit !== undefined ? parseInt(limit, 10) : undefined;
+  if (Number.isNaN(limit) || limit <= 0) {
+    limit = undefined;
+  }
+
+  if (page !== undefined && offset === undefined && limit !== undefined) {
+    const pageNum = parseInt(page, 10);
+    if (!Number.isNaN(pageNum) && pageNum > 0) {
+      offset = (pageNum - 1) * limit;
+    }
+  } else if (offset !== undefined) {
+    offset = parseInt(offset, 10);
+    if (Number.isNaN(offset) || offset < 0) {
+      offset = undefined;
+    }
+  }
+
+  const [leaderboard, totalCount] = await Promise.all([
+    Agent.findAll({
+      order: [['totalPoints', 'DESC']],
+      limit,
+      offset,
+    }),
+    Agent.count(),
+  ]);
+
+  const pageSize = limit || leaderboard.length;
+  res.json({ leaderboard, pagination: { totalCount, pageSize } });
 });
 
 // Agent dashboard endpoint
