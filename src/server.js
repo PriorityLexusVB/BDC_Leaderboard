@@ -1,4 +1,5 @@
 const express = require('express');
+const Joi = require('joi');
 const { computePoints } = require('./gamification');
 
 const app = express();
@@ -8,6 +9,17 @@ app.use(express.json());
 const agents = new Map(); // agentId -> {id, firstName, lastName, totalPoints}
 const calls = []; // {id, agentId, points}
 
+// validation schema
+const payloadSchema = Joi.object({
+  call: Joi.object({
+    duration: Joi.number().min(0),
+    response_time: Joi.number().min(0)
+  }).unknown(),
+  scored_call: Joi.object({
+    percentage: Joi.number().min(0).max(100)
+  }).unknown()
+}).unknown();
+
 // Webhook endpoint
 app.post('/api/webhooks/calldrip', (req, res) => {
   const payload = req.body || {};
@@ -16,6 +28,12 @@ app.post('/api/webhooks/calldrip', (req, res) => {
   if (!agentId) {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
+
+  const { error } = payloadSchema.validate(payload);
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
   // create or update agent
   const a = agents.get(agentId) || {
     id: agentId,

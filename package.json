@@ -4,7 +4,7 @@
   "description": "BDC LEADERBOARD",
   "main": "src/server.js",
   "scripts": {
-    "test": "node test.js",
+    "test": "node --test",
     "start": "node src/server.js"
   },
   "keywords": [],
@@ -12,7 +12,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "joi": "^18.0.1"
   },
   "devDependencies": {
     "supertest": "^7.1.4"
