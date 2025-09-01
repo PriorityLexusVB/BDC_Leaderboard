@@ -10,17 +10,14 @@ Simple Express-based prototype for call center gamification.
 
 ## Development
 
+Install dependencies and start the server:
+
 ```bash
 npm install
 npm start
 ```
 
 ## Testing
-
- codex/summarize-call-center-gamification-features-b0d3sd
-```bash
-npm test
-```
 
 Run the test suite:
 
@@ -35,4 +32,3 @@ To automatically rerun tests on file changes (Node 18+):
 ```bash
 npm test -- --watch
 ```
- main
