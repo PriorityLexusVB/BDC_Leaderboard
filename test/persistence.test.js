@@ -47,4 +47,3 @@ test('persists data across restart', async () => {
   const { sequelize } = require('../src/db');
   await sequelize.close();
 });
-
