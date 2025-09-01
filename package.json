@@ -4,7 +4,11 @@
   "description": "BDC LEADERBOARD",
   "main": "src/server.js",
   "scripts": {
+ codex/add-validation-for-call-parameters
     "test": "node --test",
+
+    "test": "node test.js && node test/server.test.js",
+ main
     "start": "node src/server.js"
   },
   "keywords": [],
@@ -13,7 +17,12 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.1.0",
+ codex/add-validation-for-call-parameters
     "joi": "^18.0.1"
+
+    "sequelize": "^6.37.1",
+    "sqlite3": "^5.1.6"
+ main
   },
   "devDependencies": {
     "supertest": "^7.1.4"

@@ -14,3 +14,19 @@ Simple Express-based prototype for call center gamification.
 npm install
 npm start
 ```
+
+## Testing
+
+Run the test suite:
+
+```bash
+npm test
+```
+
+No additional environment variables are required. The server will use `PORT` if set, but tests run against the in-memory app.
+
+To automatically rerun tests on file changes (Node 18+):
+
+```bash
+npm test -- --watch
+```

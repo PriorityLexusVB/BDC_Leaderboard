@@ -1,3 +1,4 @@
+ codex/add-validation-for-call-parameters
 const test = require('node:test');
 const request = require('supertest');
 const app = require('../src/server');
@@ -55,3 +56,19 @@ test('rejects scored_call.percentage over 100', async () => {
     .send({ agent: { id: 'agent-percentage-range' }, scored_call: { percentage: 150 } })
     .expect(400);
 });
+
+process.env.WEBHOOK_SECRET = 'testsecret';
+const request = require('supertest');
+const app = require('../src/server');
+
+async function run() {
+  const payload = { agent: { id: 'agent2' } };
+  await request(app)
+    .post('/api/webhooks/calldrip')
+    .set('X-Signature', 'bad-signature')
+    .send(payload)
+    .expect(401);
+}
+
+run();
+ main
