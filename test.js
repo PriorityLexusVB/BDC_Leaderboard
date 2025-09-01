@@ -1,4 +1,5 @@
 const request = require('supertest');
+ codex/introduce-database-layer-with-orm
 
 process.env.DATABASE_URL = 'sqlite::memory:';
 
@@ -6,13 +7,27 @@ async function run() {
   let { app, initDb } = require('./src/server');
   await initDb();
 
+
+const crypto = require('crypto');
+process.env.WEBHOOK_SECRET = 'testsecret';
+const app = require('./src/server');
+
+async function run() {
+  // send a sample webhook
+  const payload = {
+    agent: { id: 'agent1', first_name: 'Test', last_name: 'Agent' },
+    call: { duration: 120, response_time: 10 },
+    scored_call: { percentage: 80, opportunity: true }
+  };
+  const signature = crypto
+    .createHmac('sha256', process.env.WEBHOOK_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+ main
   await request(app)
     .post('/api/webhooks/calldrip')
-    .send({
-      agent: { id: 'agent1', first_name: 'Test', last_name: 'Agent' },
-      call: { duration: 120, response_time: 10 },
-      scored_call: { percentage: 80, opportunity: true }
-    })
+    .set('X-Signature', signature)
+    .send(payload)
     .expect(200);
 
   let lbRes = await request(app).get('/api/leaderboard').expect(200);

@@ -1,12 +1,31 @@
 const express = require('express');
+const crypto = require('crypto');
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb } = require('./db');
 
 const app = express();
-app.use(express.json());
+// Capture the raw body so we can verify the signature
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 
 // Webhook endpoint
+ codex/introduce-database-layer-with-orm
 app.post('/api/webhooks/calldrip', async (req, res) => {
+
+app.post('/api/webhooks/calldrip', (req, res) => {
+  const secret = process.env.WEBHOOK_SECRET || '';
+  const receivedSig = req.get('X-Signature') || '';
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(req.rawBody || '')
+    .digest('hex');
+  if (receivedSig !== expectedSig) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+ main
   const payload = req.body || {};
   const agentPayload = payload.agent || {};
   const agentId = agentPayload.id;
