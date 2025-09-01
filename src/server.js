@@ -1,57 +1,60 @@
 const express = require('express');
 const { computePoints } = require('./gamification');
+const { Agent, Call, initDb } = require('./db');
 
 const app = express();
 app.use(express.json());
 
-// In-memory stores for demo purposes
-const agents = new Map(); // agentId -> {id, firstName, lastName, totalPoints}
-const calls = []; // {id, agentId, points}
-
 // Webhook endpoint
-app.post('/api/webhooks/calldrip', (req, res) => {
+app.post('/api/webhooks/calldrip', async (req, res) => {
   const payload = req.body || {};
-  const agent = payload.agent || {};
-  const agentId = agent.id;
+  const agentPayload = payload.agent || {};
+  const agentId = agentPayload.id;
   if (!agentId) {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
-  // create or update agent
-  const a = agents.get(agentId) || {
-    id: agentId,
-    firstName: agent.first_name || '',
-    lastName: agent.last_name || '',
-    totalPoints: 0
-  };
+
+  let agent = await Agent.findByPk(agentId);
+  if (!agent) {
+    agent = await Agent.create({
+      id: agentId,
+      firstName: agentPayload.first_name || '',
+      lastName: agentPayload.last_name || '',
+      totalPoints: 0
+    });
+  }
+
   const points = computePoints(payload);
-  a.totalPoints += points;
-  agents.set(agentId, a);
-  calls.push({ id: payload.call?.id ?? null, agentId, points });
+  agent.totalPoints += points;
+  await agent.save();
+  await Call.create({ externalId: payload.call?.id ?? null, agentId, points });
   res.json({ pointsAwarded: points });
 });
 
 // Leaderboard endpoint
-app.get('/api/leaderboard', (req, res) => {
-  const leaderboard = Array.from(agents.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+app.get('/api/leaderboard', async (req, res) => {
+  const leaderboard = await Agent.findAll({ order: [['totalPoints', 'DESC']] });
   res.json({ leaderboard });
 });
 
 // Agent dashboard endpoint
-app.get('/api/agents/:agentId/dashboard', (req, res) => {
+app.get('/api/agents/:agentId/dashboard', async (req, res) => {
   const agentId = req.params.agentId;
-  const agent = agents.get(agentId);
+  const agent = await Agent.findByPk(agentId);
   if (!agent) {
     return res.status(404).json({ error: 'Agent not found' });
   }
-  const agentCalls = calls.filter(c => c.agentId === agentId);
+  const agentCalls = await Call.findAll({ where: { agentId } });
   res.json({ agent, calls: agentCalls });
 });
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server listening on ${PORT}`);
+  initDb().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server listening on ${PORT}`);
+    });
   });
 }
 
-module.exports = app;
+module.exports = { app, initDb };

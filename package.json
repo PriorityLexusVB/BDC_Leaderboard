@@ -12,7 +12,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "sequelize": "^6.37.1",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "supertest": "^7.1.4"
