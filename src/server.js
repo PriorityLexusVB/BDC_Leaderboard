@@ -19,7 +19,7 @@ app.post('/api/webhooks/calldrip', (req, res) => {
   const agent = payload.agent || {};
  codex/summarize-call-center-gamification-features-ffji8f
   const agentIdRaw = agent.id;
-  if (agentIdRaw === undefined || agentIdRaw === null || agentIdRaw === '') {
+  if (agentIdRaw == null || agentIdRaw === '') {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
   const agentId = String(agentIdRaw);
