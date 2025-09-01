@@ -10,10 +10,11 @@ Simple Express-based prototype for call center gamification.
 
 ## Development
 
-Install dependencies and start the server:
+Install dependencies, run database migrations, and start the server:
 
 ```bash
 npm install
+npm run migrate
 npm start
 ```
 
