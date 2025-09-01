@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "BDC LEADERBOARD",
  codex/summarize-call-center-gamification-features-ffji8f
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
     "test": "jest",
 
