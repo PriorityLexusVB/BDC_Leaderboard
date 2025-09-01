@@ -3,7 +3,7 @@ process.env.WEBHOOK_SECRET = 'testsecret';
 
 const request = require('supertest');
 const { app, initDb } = require('../src/server');
-const { sequelize } = require('../src/db');
+const { sequelize, Agent } = require('../src/db');
 const { computePoints } = require('../src/gamification');
 const crypto = require('crypto');
 
@@ -105,4 +105,46 @@ test('numeric agent id is rejected', async () => {
     .set('X-Signature', sign(payload))
     .send(payload)
     .expect(400);
+});
+
+test('leaderboard supports limit and offset', async () => {
+  for (let i = 1; i <= 5; i++) {
+    await Agent.create({
+      id: `agent${i}`,
+      firstName: '',
+      lastName: '',
+      totalPoints: 6 - i,
+    });
+  }
+
+  const res = await request(app)
+    .get('/api/leaderboard?limit=2&offset=2')
+    .expect(200);
+  expect(res.body.leaderboard.map((a) => a.id)).toEqual([
+    'agent3',
+    'agent4',
+  ]);
+  expect(res.body.pagination.totalCount).toBe(5);
+  expect(res.body.pagination.pageSize).toBe(2);
+});
+
+test('leaderboard supports page parameter', async () => {
+  for (let i = 1; i <= 5; i++) {
+    await Agent.create({
+      id: `agent${i}`,
+      firstName: '',
+      lastName: '',
+      totalPoints: 6 - i,
+    });
+  }
+
+  const res = await request(app)
+    .get('/api/leaderboard?limit=2&page=2')
+    .expect(200);
+  expect(res.body.leaderboard.map((a) => a.id)).toEqual([
+    'agent3',
+    'agent4',
+  ]);
+  expect(res.body.pagination.totalCount).toBe(5);
+  expect(res.body.pagination.pageSize).toBe(2);
 });
