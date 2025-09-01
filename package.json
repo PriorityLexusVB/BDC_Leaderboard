@@ -3,21 +3,17 @@
   "version": "1.0.0",
   "description": "BDC LEADERBOARD",
   "main": "src/server.js",
+  "type": "commonjs",
   "scripts": {
-    "test": "node test.js && jest",
+    "test": "node test/duplicate-call.test.js && node test/persistence.test.js",
     "start": "node src/server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "express": "^4.19.2"
   },
   "devDependencies": {
     "supertest": "^7.1.4",
     "jest": "^29.7.0",
-    "express": "^5.1.0",
     "joi": "^18.0.1",
     "sequelize": "^6.37.1",
     "sqlite3": "^5.1.6"

@@ -1,22 +1,16 @@
+const test = require('node:test');
+const assert = require('assert/strict');
 const request = require('supertest');
 const crypto = require('crypto');
 
-process.env.DATABASE_URL = 'sqlite::memory:';
+process.env.DATABASE_URL = 'sqlite:test-persistence.db';
 process.env.WEBHOOK_SECRET = 'testsecret';
 
-let app;
-let initDb;
+// Module scope references; will be reloaded to simulate restart
+const serverPath = '../src/server';
+let { app, initDb } = require(serverPath);
 
-beforeAll(async () => {
-  ({ app, initDb } = require('../src/server'));
-  await initDb();
-});
-
-afterAll(async () => {
-  const { sequelize } = require('../src/db');
-  await sequelize.close();
-});
-
+// Helper to sign payloads
 function sign(payload) {
   return crypto
     .createHmac('sha256', process.env.WEBHOOK_SECRET)
@@ -24,28 +18,32 @@ function sign(payload) {
     .digest('hex');
 }
 
-test('data persists across server restart', async () => {
+test('persists data across restart', async () => {
+  await initDb();
+
   const payload = {
     agent: { id: 'agent1', first_name: 'Test', last_name: 'Agent' },
     call: { id: 'call1', duration: 120, response_time: 10 },
-    scored_call: { percentage: 80, opportunity: true },
+    scored_call: { percentage: 80, opportunity: true }
   };
-  const signature = sign(payload);
 
   await request(app)
     .post('/api/webhooks/calldrip')
-    .set('X-Signature', signature)
+    .set('X-Signature', sign(payload))
     .send(payload)
     .expect(200);
 
-  let lbRes = await request(app).get('/api/leaderboard').expect(200);
-  expect(Array.isArray(lbRes.body.leaderboard)).toBe(true);
-  expect(lbRes.body.leaderboard.length).toBeGreaterThan(0);
+  let res = await request(app).get('/api/leaderboard').expect(200);
+  assert.ok(Array.isArray(res.body.leaderboard) && res.body.leaderboard.length > 0);
 
-  delete require.cache[require.resolve('../src/server')];
-  ({ app, initDb } = require('../src/server'));
+  // Simulate server restart by reloading module and re-initialising DB
+  [serverPath, '../src/db'].map(require.resolve).forEach(id => delete require.cache[id]);
+  ({ app, initDb } = require(serverPath));
   await initDb();
 
-  lbRes = await request(app).get('/api/leaderboard').expect(200);
-  expect(lbRes.body.leaderboard.length).toBeGreaterThan(0);
+  res = await request(app).get('/api/leaderboard').expect(200);
+  assert.strictEqual(res.body.leaderboard[0].id, 'agent1');
+
+  const { sequelize } = require('../src/db');
+  await sequelize.close();
 });
