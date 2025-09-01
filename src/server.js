@@ -1,5 +1,9 @@
 const express = require('express');
+ codex/add-validation-for-call-parameters
+const Joi = require('joi');
+
 const crypto = require('crypto');
+ main
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb } = require('./db');
 
@@ -10,6 +14,17 @@ app.use(express.json({
     req.rawBody = buf.toString();
   }
 }));
+
+// validation schema
+const payloadSchema = Joi.object({
+  call: Joi.object({
+    duration: Joi.number().min(0),
+    response_time: Joi.number().min(0)
+  }).unknown(),
+  scored_call: Joi.object({
+    percentage: Joi.number().min(0).max(100)
+  }).unknown()
+}).unknown();
 
 // Webhook endpoint
  codex/introduce-database-layer-with-orm
@@ -33,6 +48,20 @@ app.post('/api/webhooks/calldrip', (req, res) => {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
 
+ codex/add-validation-for-call-parameters
+  const { error } = payloadSchema.validate(payload);
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  // create or update agent
+  const a = agents.get(agentId) || {
+    id: agentId,
+    firstName: agent.first_name || '',
+    lastName: agent.last_name || '',
+    totalPoints: 0
+  };
+
   let agent = await Agent.findByPk(agentId);
   if (!agent) {
     agent = await Agent.create({
@@ -43,6 +72,7 @@ app.post('/api/webhooks/calldrip', (req, res) => {
     });
   }
 
+ main
   const points = computePoints(payload);
   agent.totalPoints += points;
   await agent.save();
