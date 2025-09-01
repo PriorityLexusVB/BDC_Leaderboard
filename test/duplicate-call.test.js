@@ -1,5 +1,3 @@
-const test = require('node:test');
-const assert = require('assert/strict');
 const request = require('supertest');
 const crypto = require('crypto');
 
@@ -7,12 +5,22 @@ process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.WEBHOOK_SECRET = 'testsecret';
 
 const { app, initDb } = require('../src/server');
-const { Agent, Call } = require('../src/db');
+const { Agent, Call, sequelize } = require('../src/db');
 const { computePoints } = require('../src/gamification');
 
-test('ignores duplicate calls with same externalId', async () => {
-  await initDb();
+beforeEach(async () => {
+  await sequelize.sync({ force: true });
+});
 
+beforeAll(async () => {
+  await initDb();
+});
+
+afterAll(async () => {
+  await sequelize.close();
+});
+
+test('ignores duplicate calls with same externalId', async () => {
   const payload = {
     agent: { id: 'dup-agent', first_name: 'Dup', last_name: 'Agent' },
     call: { id: 'call-123', duration: 120, response_time: 10 },
@@ -36,13 +44,12 @@ test('ignores duplicate calls with same externalId', async () => {
     .send(payload)
     .expect(200);
 
-  assert.equal(second.body.pointsAwarded, 0);
+  expect(second.body.pointsAwarded).toBe(0);
 
   const agent = await Agent.findByPk('dup-agent');
   const expected = computePoints(payload);
-  assert.equal(agent.totalPoints, expected);
+  expect(agent.totalPoints).toBe(expected);
 
   const calls = await Call.count();
-  assert.equal(calls, 1);
+  expect(calls).toBe(1);
 });
-
