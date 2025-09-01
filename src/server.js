@@ -13,7 +13,7 @@ const processedCalls = new Set(); // track processed call IDs to avoid duplicate
 app.post('/api/webhooks/calldrip', (req, res) => {
   const payload = req.body || {};
   const agent = payload.agent || {};
-  const agentId = agent.id;
+  const agentId = agent.id?.toString();
   if (!agentId) {
     return res.status(400).json({ error: 'Missing agent.id' });
   }
