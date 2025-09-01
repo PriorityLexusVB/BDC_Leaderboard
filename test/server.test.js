@@ -1,11 +1,11 @@
+process.env.DATABASE_URL = 'sqlite::memory:';
+process.env.WEBHOOK_SECRET = 'testsecret';
+
 const request = require('supertest');
 const { app, initDb } = require('../src/server');
 const { sequelize, Agent } = require('../src/db');
 const { computePoints } = require('../src/gamification');
 const crypto = require('crypto');
-
-process.env.DATABASE_URL = 'sqlite::memory:';
-process.env.WEBHOOK_SECRET = 'testsecret';
 
 beforeAll(async () => {
   await initDb();
