@@ -1,9 +1,6 @@
 const express = require('express');
- codex/add-validation-for-call-parameters
 const Joi = require('joi');
-
 const crypto = require('crypto');
- main
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb } = require('./db');
 
@@ -17,20 +14,23 @@ app.use(express.json({
 
 // validation schema
 const payloadSchema = Joi.object({
+  agent: Joi.object({
+    id: Joi.string().required(),
+    first_name: Joi.string().allow(''),
+    last_name: Joi.string().allow('')
+  }).required().unknown(),
   call: Joi.object({
+    id: Joi.string().required(),
     duration: Joi.number().min(0),
     response_time: Joi.number().min(0)
-  }).unknown(),
+  }).required().unknown(),
   scored_call: Joi.object({
     percentage: Joi.number().min(0).max(100)
   }).unknown()
 }).unknown();
 
 // Webhook endpoint
- codex/introduce-database-layer-with-orm
 app.post('/api/webhooks/calldrip', async (req, res) => {
-
-app.post('/api/webhooks/calldrip', (req, res) => {
   const secret = process.env.WEBHOOK_SECRET || '';
   const receivedSig = req.get('X-Signature') || '';
   const expectedSig = crypto
@@ -40,27 +40,23 @@ app.post('/api/webhooks/calldrip', (req, res) => {
   if (receivedSig !== expectedSig) {
     return res.status(401).json({ error: 'Invalid signature' });
   }
- main
-  const payload = req.body || {};
-  const agentPayload = payload.agent || {};
-  const agentId = agentPayload.id;
-  if (!agentId) {
-    return res.status(400).json({ error: 'Missing agent.id' });
-  }
 
- codex/add-validation-for-call-parameters
+  const payload = req.body || {};
   const { error } = payloadSchema.validate(payload);
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
-  // create or update agent
-  const a = agents.get(agentId) || {
-    id: agentId,
-    firstName: agent.first_name || '',
-    lastName: agent.last_name || '',
-    totalPoints: 0
-  };
+  const agentPayload = payload.agent;
+  const agentId = agentPayload.id;
+  if (agentId == null || agentId === '') {
+    return res.status(400).json({ error: 'Missing agent.id' });
+  }
+
+  const callId = payload.call.id;
+  if (!callId) {
+    return res.status(400).json({ error: 'Missing call.id' });
+  }
 
   let agent = await Agent.findByPk(agentId);
   if (!agent) {
@@ -72,11 +68,16 @@ app.post('/api/webhooks/calldrip', (req, res) => {
     });
   }
 
- main
+  const existingCall = await Call.findOne({ where: { externalId: callId } });
+  if (existingCall) {
+    return res.status(200).json({ pointsAwarded: 0, duplicate: true });
+  }
+
   const points = computePoints(payload);
   agent.totalPoints += points;
   await agent.save();
-  await Call.create({ externalId: payload.call?.id ?? null, agentId, points });
+  await Call.create({ externalId: callId, agentId, points });
+
   res.json({ pointsAwarded: points });
 });
 
