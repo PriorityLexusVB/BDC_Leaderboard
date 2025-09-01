@@ -4,12 +4,23 @@ const crypto = require('crypto');
 const path = require('path');
 const { computePoints } = require('./gamification');
 const { Agent, Call, initDb } = require('./db');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Read once at startup
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const RATE_LIMIT_WINDOW_MS = parseInt(
+  process.env.RATE_LIMIT_WINDOW_MS || '900000',
+  10
+);
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '100', 10);
+
+const calldripLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: RATE_LIMIT_MAX,
+});
 
 // Capture the raw body so we can verify the signature
 app.use(
@@ -43,7 +54,7 @@ const payloadSchema = Joi.object({
 }).unknown();
 
 // Webhook endpoint
-app.post('/api/webhooks/calldrip', async (req, res) => {
+app.post('/api/webhooks/calldrip', calldripLimiter, async (req, res) => {
   const secret = WEBHOOK_SECRET || '';
   const receivedSig = req.get('X-Signature') || '';
   const expectedSig = crypto

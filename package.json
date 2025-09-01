@@ -11,7 +11,8 @@
     "migrate:undo": "sequelize-cli db:migrate:undo"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "express-rate-limit": "^6.7.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
