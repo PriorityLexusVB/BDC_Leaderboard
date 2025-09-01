@@ -6,6 +6,9 @@ const { Agent, Call, initDb } = require('./db');
 
 const app = express();
 
+// Read once at startup
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+
 // Capture the raw body so we can verify the signature
 app.use(
   express.json({
@@ -39,7 +42,7 @@ const payloadSchema = Joi.object({
 
 // Webhook endpoint
 app.post('/api/webhooks/calldrip', async (req, res) => {
-  const secret = process.env.WEBHOOK_SECRET || '';
+  const secret = WEBHOOK_SECRET || '';
   const receivedSig = req.get('X-Signature') || '';
   const expectedSig = crypto
     .createHmac('sha256', secret)
@@ -105,6 +108,10 @@ app.get('/api/agents/:agentId/dashboard', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
+  if (!WEBHOOK_SECRET) {
+    console.error('WEBHOOK_SECRET environment variable is required');
+    process.exit(1);
+  }
   initDb().then(() => {
     app.listen(PORT, () => {
       console.log(`Server listening on ${PORT}`);

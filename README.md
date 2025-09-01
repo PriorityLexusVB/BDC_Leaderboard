@@ -10,11 +10,11 @@ Simple Express-based prototype for call center gamification.
 
 ## Development
 
-Install dependencies and start the server:
+Install dependencies and start the server (a `WEBHOOK_SECRET` is required to verify incoming webhooks):
 
 ```bash
 npm install
-npm start
+WEBHOOK_SECRET=your_secret npm start
 ```
 
 ## Testing
@@ -25,7 +25,7 @@ Run the test suite:
 npm test
 ```
 
-No additional environment variables are required. The server will use `PORT` if set, but tests run against the in-memory app.
+Set `WEBHOOK_SECRET` to the shared secret used to sign webhook requests. The server will use `PORT` if set, but tests run against the in-memory app.
 
 To automatically rerun tests on file changes (Node 18+):
 
