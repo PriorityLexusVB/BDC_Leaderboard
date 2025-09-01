@@ -3,7 +3,7 @@ const Joi = require('joi');
 const crypto = require('crypto');
 
 const { computePoints } = require('./gamification');
-const { Agent, Call, initDb } = require('./db');
+const { Agent, Call, initDb, sequelize } = require('./db');
 
 const app = express();
 
@@ -71,9 +71,22 @@ app.post('/api/webhooks/calldrip', async (req, res) => {
   }
 
   const points = computePoints(payload);
+ codex/update-webhook-handler-for-point-allocation
   await Agent.increment('totalPoints', { by: points, where: { id: agentId } });
   await Call.create({ externalId, agentId, points });
 
+
+  await sequelize.transaction(async (t) => {
+    await Agent.increment(
+      { totalPoints: points },
+      { where: { id: agentId }, transaction: t }
+    );
+    await Call.create(
+      { externalId: payload.call?.id ?? null, agentId, points },
+      { transaction: t }
+    );
+  });
+ main
   res.json({ pointsAwarded: points });
 });
 
