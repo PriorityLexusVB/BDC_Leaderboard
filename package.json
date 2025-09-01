@@ -1,0 +1,20 @@
+{
+  "name": "bdc_leaderboard",
+  "version": "1.0.0",
+  "description": "BDC LEADERBOARD",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "node test.js",
+    "start": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.4"
+  }
+}
