@@ -1,0 +1,387 @@
+diff --git a/README.md b/README.md
+index 1e72c64..7a1b2fa 100644
+--- a/README.md
++++ b/README.md
+@@
+ API on :8080 (default), Web on :5173.
+
+ ## Test the webhook
+@@
+ Then visit `http://localhost:8080/api/leaderboard` and open the web app at `http://localhost:5173/`.
+
+ ## Env Vars (apps/api/.env.example)
+ - `WEBHOOK_SECRET` – required for webhook auth
+ - `DATABASE_URL` – `sqlite:./dev.sqlite` (dev) or Postgres URI in prod
+ - `CORS_ORIGIN` – e.g., `http://localhost:5173`
+ - `CALLDRIP_API_BASE`, `CALLDRIP_API_KEY`, `CALLDRIP_ACCOUNT_ID` – optional for backfill
+
+ ## Production
+ - Point DATABASE_URL to Postgres (Supabase/Render)
+ - `npx prisma migrate deploy`
+ - Deploy API (Render/Heroku/GCP). Deploy Web (Vercel/Netlify) with `VITE_API_BASE` pointing to your API.
++
++
++## Phase 3: Production-Ready Upgrades
++- Manager login to mint JWTs (no hardcoded tokens).
++- Slack & Email weekly-winner digest.
++- Postgres-first: add `docker-compose.yml` for local DB parity with prod.
++
++### Local Postgres via Docker
++```bash
++docker compose up -d db
++# DATABASE_URL example (match compose):
++# postgresql://postgres:postgres@localhost:5432/bdc_leaderboard?schema=public
++cd apps/api
++cp .env.example .env   # set DATABASE_URL to the above, plus JWT_SECRET
++npm i
++npm run prisma:generate
++npm run prisma:push
++npm run seed
++npm run dev
++```
+diff --git a/apps/api/.env.example b/apps/api/.env.example
+index 664c565..6ac3e21 100644
+--- a/apps/api/.env.example
++++ b/apps/api/.env.example
+@@
+ PORT=8080
+ NODE_ENV=development
+-WEBHOOK_SECRET=change_me
+-CORS_ORIGIN=http://localhost:5173
+-
+-# SQLite for dev
+-DATABASE_URL=sqlite:./dev.sqlite
+-
+-# Calldrip (optional for backfill/click-to-call)
+-CALLDRIP_API_BASE=https://api.calldrip.com
+-CALLDRIP_API_KEY=
+-CALLDRIP_ACCOUNT_ID=
++WEBHOOK_SECRET=change_me
++JWT_SECRET=change_me_admin
++CORS_ORIGIN=http://localhost:5173
++
++# Database (Postgres)
++# If using docker-compose as provided:
++# postgresql://postgres:postgres@localhost:5432/bdc_leaderboard?schema=public
++DATABASE_URL=postgresql://postgres:postgres@localhost:5432/bdc_leaderboard?schema=public
++
++# Calldrip (optional for backfill/click-to-call)
++CALLDRIP_API_BASE=https://api.calldrip.com
++CALLDRIP_API_KEY=
++CALLDRIP_ACCOUNT_ID=
++
++# Notifications (optional)
++SLACK_WEBHOOK_URL=
++SMTP_HOST=
++SMTP_PORT=587
++SMTP_USER=
++SMTP_PASS=
++SMTP_FROM="Priority Gamify <no-reply@example.com>"
++NOTIFY_TO=manager@example.com
++ADMIN_EMAIL=admin@example.com
++ADMIN_PASSWORD_PLAIN=changeme123
+diff --git a/apps/api/ADMIN.md b/apps/api/ADMIN.md
+new file mode 100644
+index 0000000..2cdb032
+--- /dev/null
++++ b/apps/api/ADMIN.md
+@@
++# Admin Notes
++- Login to get a manager JWT:
++```
++POST /api/auth/login
++{ "email": "admin@example.com", "password": "changeme123" }
++```
++Use the returned token in `Authorization: Bearer <token>` for all `/api/admin/*` routes.
++
++- Send weekly winners digest (Slack + Email envs optional):
++```
++POST /api/admin/notify/weekly
++```
+diff --git a/apps/api/package.json b/apps/api/package.json
+index 7f66521..cc5b9a4 100644
+--- a/apps/api/package.json
++++ b/apps/api/package.json
+@@
+     "cors": "^2.8.5",
+     "dayjs": "^1.11.13",
+     "express": "^4.19.2",
++    "bcryptjs": "^2.4.3",
++    "jsonwebtoken": "^9.0.2",
++    "nodemailer": "^6.9.14",
+     "pino": "^9.2.0",
+     "pino-pretty": "^11.2.2",
+     "zod": "^3.23.8",
+diff --git a/apps/api/prisma/schema.prisma b/apps/api/prisma/schema.prisma
+index b692a52..13dfebc 100644
+--- a/apps/api/prisma/schema.prisma
++++ b/apps/api/prisma/schema.prisma
+@@
+   date_earned DateTime @default(now())
+ }
++
++model Manager {
++  id            Int      @id @default(autoincrement())
++  email         String   @unique
++  password_hash String
++  created_at    DateTime @default(now())
++}
+diff --git a/apps/api/prisma/seed.ts b/apps/api/prisma/seed.ts
+index f4e9bde..ab790f2 100644
+--- a/apps/api/prisma/seed.ts
++++ b/apps/api/prisma/seed.ts
+@@
+   await prisma.badge.createMany({
+     data: [
+       { name: 'Speed Demon', description: '5 fast responses in a row' },
+       { name: 'Quality Champion', description: '5 high QA scores in a row' },
+       { name: 'Marathoner', description: '10 long calls in a day' }
+     ],
+     skipDuplicates: true
+   });
++
++  // Seed one Manager account from env (email + plain password)
++  const email = process.env.ADMIN_EMAIL || 'admin@example.com';
++  const plain = process.env.ADMIN_PASSWORD_PLAIN || 'changeme123';
++  const bcrypt = await import('bcryptjs');
++  const hash = await bcrypt.hash(plain, 10);
++  await prisma.manager.upsert({
++    where: { email },
++    update: { password_hash: hash },
++    create: { email, password_hash: hash }
++  });
+ }
+ 
+ main().finally(() => prisma.$disconnect());
+diff --git a/apps/api/src/index.ts b/apps/api/src/index.ts
+index 45d08d4..35655ac 100644
+--- a/apps/api/src/index.ts
++++ b/apps/api/src/index.ts
+@@
+ import { webhooks } from './routes/webhooks';
+ import { leaderboard } from './routes/leaderboard';
+ import { agents } from './routes/agents';
+-import { admin } from './routes/admin';
+-import { challenges } from './routes/challenges';
++import { admin } from './routes/admin';
++import { challenges } from './routes/challenges';
++import { auth } from './routes/auth';
+@@
+ app.get('/health', (_req, res) => res.json({ ok: true }));
+ app.use('/api/webhooks', webhooks);
+ app.use('/api/leaderboard', leaderboard);
+ app.use('/api/agents', agents);
+-app.use('/api/admin', admin);
+-app.use('/api/challenges', challenges);
++app.use('/api/auth', auth);
++app.use('/api/admin', admin);
++app.use('/api/challenges', challenges);
+diff --git a/apps/api/src/jobs/notify.ts b/apps/api/src/jobs/notify.ts
+index 936d4b3..ab3cb8c 100644
+--- a/apps/api/src/jobs/notify.ts
++++ b/apps/api/src/jobs/notify.ts
+@@
+-// Placeholder: build summary for winners (Slack/Email integration can be added)
+-export async function weeklyWinnersDigest() {
+-  const lastWeek = new Date();
+-  lastWeek.setDate(lastWeek.getDate() - 7);
+-  const rows: any[] = await prisma.$queryRawUnsafe(`
+-    SELECT a.id, a.first_name, a.last_name, SUM(pl.points_awarded) AS points
+-    FROM "PointsLog" pl
+-    JOIN "Agent" a ON a.id = pl.agent_id
+-    WHERE pl."timestamp" >= $1
+-    GROUP BY a.id, a.first_name, a.last_name
+-    ORDER BY points DESC
+-    LIMIT 5;
+-  `, lastWeek);
+-  return rows;
+-}
++async function winnersSince(date: Date) {
++  const rows: any[] = await prisma.$queryRawUnsafe(`
++    SELECT a.id, a.first_name, a.last_name, SUM(pl.points_awarded) AS points
++    FROM "PointsLog" pl
++    JOIN "Agent" a ON a.id = pl.agent_id
++    WHERE pl."timestamp" >= $1
++    GROUP BY a.id, a.first_name, a.last_name
++    ORDER BY points DESC
++    LIMIT 5;
++  `, date);
++  return rows;
++}
++
++export async function weeklyWinnersDigest() {
++  const since = new Date();
++  since.setDate(since.getDate() - 7);
++  return winnersSince(since);
++}
++
++export async function sendWinnersDigest() {
++  const winners = await weeklyWinnersDigest();
++  const lines = winners.map((w, i) => `${i+1}. ${w.first_name} ${w.last_name} — ${w.points} pts`).join('\\n');
++  const text = `Weekly Winners (Top 5)\\n${lines || 'No data this week yet.'}`;
++
++  // Slack (Incoming Webhook)
++  const hook = process.env.SLACK_WEBHOOK_URL;
++  if (hook) {
++    await fetch(hook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text }) });
++  }
++
++  // Email (SMTP)
++  const host = process.env.SMTP_HOST;
++  const user = process.env.SMTP_USER;
++  const pass = process.env.SMTP_PASS;
++  const to = process.env.NOTIFY_TO;
++  const from = process.env.SMTP_FROM || 'no-reply@example.com';
++  if (host && user && pass && to) {
++    const nodemailer = await import('nodemailer');
++    const t = nodemailer.createTransport({ host, port: Number(process.env.SMTP_PORT||587), secure: false, auth: { user, pass } });
++    await t.sendMail({ from, to, subject: 'Weekly Winners', text });
++  }
++  return { sent: true, winners };
++}
+diff --git a/apps/api/src/routes/admin.ts b/apps/api/src/routes/admin.ts
+index 89d9df4..f93f534 100644
+--- a/apps/api/src/routes/admin.ts
++++ b/apps/api/src/routes/admin.ts
+@@
+ admin.post('/challenges/:id/close', async (req, res) => {
+   const id = Number(req.params.id);
+   const ch = await prisma.challenge.findUnique({ where: { id } });
+   if (!ch) return res.status(404).json({ error: 'not found' });
+   // Snapshot final standings into ChallengeEntry
+   const rows: any[] = await prisma.$queryRawUnsafe(`
+     SELECT a.id as agent_id, COALESCE(SUM(pl.points_awarded),0) AS points
+     FROM "Agent" a
+     LEFT JOIN "PointsLog" pl ON pl.agent_id = a.id AND pl."timestamp" BETWEEN $1 AND $2
+     GROUP BY a.id
+     ORDER BY points DESC;
+   `, ch.start_at, ch.end_at);
+   // assign ranks
+   let rank = 1;
+   for (const r of rows) {
+     await prisma.challengeEntry.create({
+       data: { challenge_id: id, agent_id: r.agent_id, points: Number(r.points||0), rank, snapshot: true }
+     });
+     rank += 1;
+   }
+   await prisma.challenge.update({ where: { id }, data: { is_active: false } });
+   res.json({ ok: true, entries: rows.length });
+ });
++
++import { sendWinnersDigest } from '../jobs/notify';
++
++admin.post('/notify/weekly', async (_req, res, next) => {
++  try {
++    const out = await sendWinnersDigest();
++    res.json(out);
++  } catch (e) { next(e); }
++});
+diff --git a/apps/api/src/routes/auth.ts b/apps/api/src/routes/auth.ts
+new file mode 100644
+index 0000000..a7276e1
+--- /dev/null
++++ b/apps/api/src/routes/auth.ts
+@@
++import { Router } from 'express';
++import { PrismaClient } from '@prisma/client';
++import jwt from 'jsonwebtoken';
++import { comparePassword } from '../utils/password';
++
++export const auth = Router();
++const prisma = new PrismaClient();
++
++auth.post('/login', async (req, res) => {
++  const { email, password } = req.body || {};
++  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
++  const mgr = await prisma.manager.findUnique({ where: { email } });
++  if (!mgr) return res.status(401).json({ error: 'Invalid credentials' });
++  const ok = await comparePassword(password, mgr.password_hash);
++  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
++  const secret = process.env.JWT_SECRET;
++  if (!secret) return res.status(500).json({ error: 'JWT not configured' });
++  const token = jwt.sign({ sub: mgr.id, email: mgr.email, role: 'manager' }, secret, { expiresIn: '12h' });
++  res.json({ token });
++});
+diff --git a/apps/api/src/utils/password.ts b/apps/api/src/utils/password.ts
+new file mode 100644
+index 0000000..2732266
+--- /dev/null
++++ b/apps/api/src/utils/password.ts
+@@
++import bcrypt from 'bcryptjs';
++
++export async function hashPassword(p: string) {
++  return bcrypt.hash(p, 10);
++}
++export async function comparePassword(p: string, hash: string) {
++  return bcrypt.compare(p, hash);
++}
+diff --git a/apps/web/src/pages/Profile.tsx b/apps/web/src/pages/Profile.tsx
+new file mode 100644
+index 0000000..9fcbedc
+--- /dev/null
++++ b/apps/web/src/pages/Profile.tsx
+@@
++import { useEffect, useState } from 'react';
++import { getAgentDashboard } from '../lib/api';
++
++export default function Profile(){
++  const params = new URLSearchParams(location.search);
++  const id = params.get('agentId') || 'a1';
++  const [data, setData] = useState<any>(null);
++  const [err, setErr] = useState<string| null>(null);
++  useEffect(() => {
++    getAgentDashboard(id).then(setData).catch(e => setErr(String(e)));
++  }, [id]);
++  if (err) return <div style={{padding:16}}>Error: {err}</div>;
++  if (!data) return <div style={{padding:16}}>Loading…</div>;
++  const { agent, recent, badges } = data;
++  return (
++    <div style={{maxWidth:900, margin:'16px auto', padding:'0 16px'}}>
++      <h2 style={{fontSize:22, fontWeight:700, margin:'8px 0 12px'}}>{agent?.first_name} {agent?.last_name}</h2>
++      <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:16}}>
++        <div style={{background:'#fff', padding:16, borderRadius:16, boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
++          <h3 style={{fontSize:18, fontWeight:700, marginBottom:8}}>Recent Points</h3>
++          <ul style={{margin:0, padding:'0 0 0 16px'}}>
++            {recent?.map((r:any, i:number) => (
++              <li key={i} style={{marginBottom:6}}>
++                <b>+{r.points_awarded}</b> from <i>{r.rule?.event_type}</i> — <span style={{opacity:0.7}}>{new Date(r.timestamp).toLocaleString()}</span>
++              </li>
++            ))}
++          </ul>
++        </div>
++        <div style={{background:'#fff', padding:16, borderRadius:16, boxShadow:'0 1px 4px rgba(0,0,0,0.06)'}}>
++          <h3 style={{fontSize:18, fontWeight:700, marginBottom:8}}>Badges</h3>
++          {badges?.length ? badges.map((b:any) => (
++            <div key={b.id} style={{marginBottom:8, display:'flex', alignItems:'center', gap:8}}>
++              <span style={{display:'inline-block', width:10, height:10, borderRadius:999, background:'#a78bfa'}}></span>
++              <div><b>{b.badge.name}</b><div style={{fontSize:12, opacity:0.7}}>{b.badge.description || ''}</div></div>
++            </div>
++          )) : <div style={{opacity:0.7}}>No badges yet.</div>}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..d15d83e
+--- /dev/null
++++ b/docker-compose.yml
+@@
++version: "3.9"
++services:
++  db:
++    image: postgres:16
++    container_name: bdc_leaderboard_db
++    restart: unless-stopped
++    environment:
++      POSTGRES_USER: postgres
++      POSTGRES_PASSWORD: postgres
++      POSTGRES_DB: bdc_leaderboard
++    ports:
++      - "5432:5432"
++    volumes:
++      - pgdata:/var/lib/postgresql/data
++volumes:
++  pgdata:

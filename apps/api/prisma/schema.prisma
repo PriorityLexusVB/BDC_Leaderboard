@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id           String        @id
+  alternate_id String?
+  first_name   String
+  last_name    String
+  email        String?
+  phone        String?
+  total_points Int           @default(0)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  calls        Call[]
+  points       PointsLog[]
+  badges       AgentBadges[]
+}
+
+model Call {
+  id            String   @id
+  agent         Agent    @relation(fields: [agent_id], references: [id])
+  agent_id      String
+  lead_id       String?
+  source_name   String?
+  status        String?
+  duration      Int?
+  response_time Int?
+  recording_url String?
+  call_date     DateTime?
+  raw_payload   Json
+  points        PointsLog[]
+}
+
+model GamificationRule {
+  id           Int      @id @default(autoincrement())
+  event_type   String   @unique
+  points_value Int
+  description  String?
+  is_active    Boolean  @default(true)
+  pointsLogs   PointsLog[]
+}
+
+model PointsLog {
+  id             Int               @id @default(autoincrement())
+  agent          Agent             @relation(fields: [agent_id], references: [id])
+  agent_id       String
+  call           Call?             @relation(fields: [call_id], references: [id])
+  call_id        String?
+  rule           GamificationRule  @relation(fields: [rule_id], references: [id])
+  rule_id        Int
+  points_awarded Int
+  timestamp      DateTime          @default(now())
+}
+
+model Badge {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  description String?
+  icon_url    String?
+  awarded     AgentBadges[]
+}
+
+model AgentBadges {
+  id          Int      @id @default(autoincrement())
+  agent       Agent    @relation(fields: [agent_id], references: [id])
+  agent_id    String
+  badge       Badge    @relation(fields: [badge_id], references: [id])
+  badge_id    Int
+  date_earned DateTime @default(now())
+}

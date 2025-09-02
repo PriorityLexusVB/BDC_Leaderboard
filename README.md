@@ -1,40 +1,48 @@
-# BDC_Leaderboard
+# BDC Leaderboard – Phase 1 Harden & UI
 
-Simple Express-based prototype for call center gamification.
+This adds a production‑minded backend rules engine + minimal React UI without breaking local dev.
 
-## Endpoints
+## Structure
+- `apps/api` – Express (TS) + Prisma (SQLite dev / Postgres prod)
+- `apps/web` – Vite + React + React Query
+- `.github/workflows/ci.yml` – Build API & Web on PR
 
-- `POST /api/webhooks/calldrip` - Accepts webhook payloads from Calldrip and awards points.
-- `GET /api/leaderboard` - Returns current leaderboard sorted by points.
-- `GET /api/agents/:agentId/dashboard` - Returns stats for a given agent.
-
-## Development
-
-Set the following environment variables before starting the server:
-
-- `WEBHOOK_SECRET` – required, shared secret used to verify webhook signatures.
-- `DATABASE_URL` – connection string for the database (defaults to `sqlite:database.sqlite`).
-- `PORT` – optional port for the HTTP server (defaults to `3000`).
-
-Install dependencies and start the server:
-
+## Quick Start (dev)
 ```bash
-npm install
-WEBHOOK_SECRET=your_secret DATABASE_URL=sqlite:database.sqlite npm start
+# 1) API
+cd apps/api
+cp .env.example .env
+npm i
+npm run prisma:generate
+npm run prisma:push
+npm run seed
+npm run dev
+
+# 2) Web
+cd ../../apps/web
+npm i
+npm run dev
 ```
+API on :8080 (default), Web on :5173.
 
-## Testing
-
-Run the test suite:
-
+## Test the webhook
 ```bash
-npm test
+curl -X POST http://localhost:8080/api/webhooks/calldrip   -H 'Content-Type: application/json'   -H 'X-Webhook-Secret: change_me'   -d '{
+    "agent":{"id":"a1","first_name":"Alex","last_name":"Lee"},
+    "call":{"id":"c1","duration":200,"response_time":12,"status":"answered","date_received":"2025-09-01T13:00:00Z"},
+    "scored_call":{"percentage":95,"is_goal":true,"opportunity":true,"appointmentDate":"2025-09-02"}
+  }'
 ```
+Then visit `http://localhost:8080/api/leaderboard` and open the web app at `http://localhost:5173/`.
 
-Set `WEBHOOK_SECRET` to the shared secret used to sign webhook requests. The server will use `PORT` and `DATABASE_URL` if set, but tests run against the in-memory app.
+## Env Vars (apps/api/.env.example)
+- `WEBHOOK_SECRET` – required for webhook auth
+- `DATABASE_URL` – `sqlite:./dev.sqlite` (dev) or Postgres URI in prod
+- `CORS_ORIGIN` – e.g., `http://localhost:5173`
+- `CALLDRIP_API_BASE`, `CALLDRIP_API_KEY`, `CALLDRIP_ACCOUNT_ID` – optional for backfill
 
-To automatically rerun tests on file changes (Node 18+):
+## Production
+- Point DATABASE_URL to Postgres (Supabase/Render)
+- `npx prisma migrate deploy`
+- Deploy API (Render/Heroku/GCP). Deploy Web (Vercel/Netlify) with `VITE_API_BASE` pointing to your API.
 
-```bash
-npm test -- --watch
-```
