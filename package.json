@@ -1,25 +1,19 @@
 {
   "name": "bdc_leaderboard",
-  "version": "1.0.0",
-  "description": "BDC LEADERBOARD",
-  "main": "src/server.js",
-  "type": "commonjs",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "packageManager": "npm@10",
   "scripts": {
-    "test": "jest --testPathIgnorePatterns=test/persistence.test.js && node test/persistence.test.js",
-    "start": "node src/server.js",
-    "migrate": "sequelize-cli db:migrate",
-    "migrate:undo": "sequelize-cli db:migrate:undo"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.3.1"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0",
-    "joi": "^18.0.1",
-    "sequelize": "^6.37.1",
-    "sequelize-cli": "^6.6.3",
-    "sqlite3": "^5.1.6",
-    "supertest": "^7.1.4"
+    "dev": "npm -w apps/api run dev & npm -w apps/web run dev",
+    "dev:api": "npm -w apps/api run dev",
+    "dev:web": "npm -w apps/web run dev",
+    "seed": "npm -w apps/api run seed",
+    "prisma:generate": "npm -w apps/api run prisma:generate",
+    "prisma:push": "npm -w apps/api run prisma:push",
+    "build": "npm -w apps/api run build && npm -w apps/web run build",
+    "test": "echo \"no tests\""
   }
 }

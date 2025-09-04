@@ -1,3 +1,4 @@
+// ---------- Generator & Datasource ----------
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,70 +8,113 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------- Models ----------
 model Agent {
-  id           String        @id
+  id           String   @id
   alternate_id String?
-  first_name   String
-  last_name    String
+  first_name   String?
+  last_name    String?
   email        String?
-  phone        String?
-  total_points Int           @default(0)
-  created_at   DateTime      @default(now())
-  updated_at   DateTime      @updatedAt
-  calls        Call[]
-  points       PointsLog[]
-  badges       AgentBadges[]
+  phone_number String?
+  total_points Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  calls          Call[]
+  points         PointsLog[]
+  badges         AgentBadge[]
+  ChallengeEntry ChallengeEntry[]
 }
 
 model Call {
-  id            String   @id
-  agent         Agent    @relation(fields: [agent_id], references: [id])
-  agent_id      String
-  lead_id       String?
-  source_name   String?
-  status        String?
-  duration      Int?
-  response_time Int?
-  recording_url String?
-  call_date     DateTime?
-  raw_payload   Json
-  points        PointsLog[]
+  id               String    @id
+  agent            Agent?    @relation(fields: [agent_id], references: [id])
+  agent_id         String?
+  lead_id          String?
+  source_name      String?
+  status           String?
+  duration         Int?
+  response_time    Int?
+  recording_url    String?
+  call_date        DateTime?
+  origination_time DateTime?
+  date_received    DateTime?
+  time_received    DateTime?
+  raw_payload      Json?
+  created_at       DateTime  @default(now())
+
+  points PointsLog[]
 }
 
 model GamificationRule {
-  id           Int      @id @default(autoincrement())
-  event_type   String   @unique
+  id           Int     @id @default(autoincrement())
+  event_type   String
   points_value Int
   description  String?
-  is_active    Boolean  @default(true)
-  pointsLogs   PointsLog[]
+  is_active    Boolean @default(true)
+
+  points PointsLog[]
 }
 
 model PointsLog {
-  id             Int               @id @default(autoincrement())
-  agent          Agent             @relation(fields: [agent_id], references: [id])
+  id             Int              @id @default(autoincrement())
+  agent          Agent            @relation(fields: [agent_id], references: [id])
   agent_id       String
-  call           Call?             @relation(fields: [call_id], references: [id])
+  call           Call?            @relation(fields: [call_id], references: [id])
   call_id        String?
-  rule           GamificationRule  @relation(fields: [rule_id], references: [id])
+  rule           GamificationRule @relation(fields: [rule_id], references: [id])
   rule_id        Int
   points_awarded Int
-  timestamp      DateTime          @default(now())
+  timestamp      DateTime         @default(now())
 }
 
 model Badge {
-  id          Int            @id @default(autoincrement())
-  name        String         @unique
+  id          Int     @id @default(autoincrement())
+  name        String
   description String?
   icon_url    String?
-  awarded     AgentBadges[]
+
+  agent_links AgentBadge[]
 }
 
-model AgentBadges {
+model AgentBadge {
   id          Int      @id @default(autoincrement())
   agent       Agent    @relation(fields: [agent_id], references: [id])
   agent_id    String
   badge       Badge    @relation(fields: [badge_id], references: [id])
   badge_id    Int
   date_earned DateTime @default(now())
+}
+
+model Manager {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now())
+}
+
+model Challenge {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  start_at    DateTime
+  end_at      DateTime
+  rule_filter Json?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+
+  entries ChallengeEntry[]
+}
+
+model ChallengeEntry {
+  id           Int       @id @default(autoincrement())
+  challenge    Challenge @relation(fields: [challenge_id], references: [id])
+  challenge_id Int
+  agent        Agent     @relation(fields: [agent_id], references: [id])
+  agent_id     String
+  points       Int       @default(0)
+  rank         Int?
+  snapshot     Boolean   @default(false)
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
 }
